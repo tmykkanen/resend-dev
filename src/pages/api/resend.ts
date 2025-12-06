@@ -10,13 +10,31 @@ const resend = new Resend(import.meta.env.RESEND_API_KEY);
 const RESEND_SEGMENT_KEY = import.meta.env.RESEND_SEGMENT_KEY;
 const RESEND_FROM = import.meta.env.RESEND_FROM;
 const RESEND_TOPICS = JSON.parse(import.meta.env.RESEND_TOPICS);
+const RESEND_WEBHOOK_SECRET = import.meta.env.DEV
+  ? import.meta.env.RESEND_WEBHOOK_SECRET_DEV
+  : import.meta.env.RESEND_WEBHOOK_SECRET_PROD;
 
-// Get authorized users from .env
-// const users = import.meta.env.RESEND_AUTH_USERS;
+// sleep function to space out calls to resend api
+const sleep = (ms: number) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const event = await request.json();
+    const payload = await request.text();
+
+    // BUG: Fix hacky solutions
+    const event = resend.webhooks.verify({
+      payload,
+      headers: {
+        id: request.headers.get("svix-id"),
+        timestamp: request.headers.get("svix-timestamp"),
+        signature: request.headers.get("svix-signature"),
+      },
+      webhookSecret: RESEND_WEBHOOK_SECRET,
+    });
+
+    console.log(event);
 
     if (event.type !== "email.received")
       return new Response("This endpoint is for email.received only.", {
@@ -28,6 +46,9 @@ export const POST: APIRoute = async ({ request }) => {
       await resend.emails.receiving.get(event.data.email_id);
 
     if (emailError) throw new Error(emailError.message);
+
+    // Resend limits requests to 2 per second
+    await sleep(1000);
 
     // Get sender segments
     const { data: segments, error: segmentsError } =
@@ -64,6 +85,9 @@ export const POST: APIRoute = async ({ request }) => {
       });
 
     if (broadcastError) throw new Error(broadcastError.message);
+
+    // Resend limits requests to 2 per second
+    await sleep(1000);
 
     // Send broadcast email
     const { error } = await resend.broadcasts.send(broadcast.id);
