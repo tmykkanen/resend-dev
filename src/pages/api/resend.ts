@@ -6,9 +6,11 @@ import { Resend } from "resend";
 
 const resend = new Resend(import.meta.env.RESEND_API_KEY);
 
+// TODO: Clean up imports?
 // Get constants from .env file. Must set .env variables on deployment servers as well.
-const RESEND_SEGMENT_KEY = import.meta.env.RESEND_SEGMENT_KEY;
-const RESEND_FROM = import.meta.env.RESEND_FROM;
+const { RESEND_SEGMENT_KEY, RESEND_FROM } = import.meta.env;
+
+// JSON.parse to handle string to object conversion
 const RESEND_TOPICS = JSON.parse(import.meta.env.RESEND_TOPICS);
 const RESEND_WEBHOOK_SECRET = import.meta.env.DEV
   ? import.meta.env.RESEND_WEBHOOK_SECRET_DEV
@@ -21,6 +23,7 @@ const sleep = (ms: number) => {
 
 export const POST: APIRoute = async ({ request }) => {
   try {
+    // Verify webhook: https://resend.com/docs/dashboard/webhooks/verify-webhooks-requests
     const payload = await request.text();
 
     // BUG: Fix hacky solutions
@@ -34,14 +37,15 @@ export const POST: APIRoute = async ({ request }) => {
       webhookSecret: RESEND_WEBHOOK_SECRET,
     });
 
-    console.log(event);
-
+    // FIX: Type unkown
+    // Check if event is email.received and return if false
     if (event.type !== "email.received")
       return new Response("This endpoint is for email.received only.", {
         status: 400,
       });
 
-    // Get email data
+    // FIX: Type unkown
+    // Get email, including html body, since webhooks do not contain this data: https://resend.com/docs/dashboard/receiving/forward-emails
     const { data: email, error: emailError } =
       await resend.emails.receiving.get(event.data.email_id);
 
@@ -68,7 +72,9 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Get topic ID from target email
-    console.log(email.to);
+    // IDs are stored in object in .env in the form {'key': 'id'}
+    // Uses bracket notation to look up value by key
+    // e.g. myTopic@example.com would return the id for Resend Topic 'myTopic' if it exists
     const topicId = RESEND_TOPICS[email.to[0].split("@")[0]];
     if (!topicId) throw new Error("Invalid topic");
 
