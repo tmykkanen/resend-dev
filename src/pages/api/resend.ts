@@ -8,7 +8,7 @@ const resend = new Resend(import.meta.env.RESEND_API_KEY);
 
 // TODO: Clean up imports?
 // Get constants from .env file. Must set .env variables on deployment servers as well.
-const { RESEND_SEGMENT_KEY, RESEND_FROM } = import.meta.env;
+const { RESEND_FROM } = import.meta.env;
 
 // JSON.parse to handle string to object conversion
 const RESEND_TOPICS = JSON.parse(import.meta.env.RESEND_TOPICS);
