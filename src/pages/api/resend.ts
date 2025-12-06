@@ -12,6 +12,8 @@ const { RESEND_SEGMENT_KEY, RESEND_FROM } = import.meta.env;
 
 // JSON.parse to handle string to object conversion
 const RESEND_TOPICS = JSON.parse(import.meta.env.RESEND_TOPICS);
+const RESEND_SEGMENTS = JSON.parse(import.meta.env.RESEND_SEGMENTS);
+
 const RESEND_WEBHOOK_SECRET = import.meta.env.DEV
   ? import.meta.env.RESEND_WEBHOOK_SECRET_DEV
   : import.meta.env.RESEND_WEBHOOK_SECRET_PROD;
@@ -64,17 +66,24 @@ export const POST: APIRoute = async ({ request }) => {
     if (!authorized)
       return new Response("Unauthorized sender!", { status: 200 });
 
-    // Get topic ID from target email
-    // IDs are stored in object in .env in the form {'key': 'id'}
-    // Uses bracket notation to look up value by key
-    // e.g. myTopic@example.com would return the id for Resend Topic 'myTopic' if it exists
-    const topicId = RESEND_TOPICS[email.to[0].split("@")[0]];
-    if (!topicId) return new Response("Invalid topicId!", { status: 200 });
+    // TODO: Refactor
+    // Get segment / topic from sender email
+    // e.g. myTopic@example.com would set target to 'myTopic'
+    const target = email.to[0].split("@")[0];
+
+    const topicId = RESEND_TOPICS[target];
+    console.log("topicId: ", topicId);
+    const segmentId = topicId
+      ? RESEND_SEGMENTS.default
+      : RESEND_SEGMENTS[target];
+
+    if (!topicId && !segmentId)
+      return new Response("Invalid target!", { status: 200 });
 
     // Create broadcast email
     const { data: broadcast, error: createBroadcastError } =
       await resend.broadcasts.create({
-        segmentId: RESEND_SEGMENT_KEY,
+        segmentId,
         topicId,
         from: RESEND_FROM,
         subject: email.subject,
